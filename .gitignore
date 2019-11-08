@@ -1,0 +1,5 @@
+.*.sw[op]
+
+# Binary
+/prommsd
+/prommsd.exe
