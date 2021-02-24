@@ -1,0 +1,23 @@
+groups:
+  - name: heartbeat
+    rules:
+      # This alert should always fire
+      - alert: ExpectedAlertHeartBeat
+        expr: up{job="prometheus"} > 0
+        # Extra safety: if a Prometheus is restarting frequently don't fire straight
+        # away. (Ideally you also have something detecting if jobs are restarting, maybe
+        # via Kubernetes metrics, but this provides some extra confidence.)
+        for: 30s
+        labels:
+          severity: heartbeat
+        annotations:
+          summary: |
+            Expected alert to test {{ $labels.job }} presence
+          # These are parameters, see below...
+          msd_identifiers: job namespace
+          msd_alertname: NoAlertConnectivity
+          msd_override_labels: severity=critical
+          msd_activation: 10m
+          msda_summary: Alert connectivity issue
+          #msd_alertmanagers: http://local.alertmanager http://alertmanager1.fully.qualified:xxx http://alertmanager2.fully.qualified:xxx
+          msd_alertmanagers: http://localhost:9093
