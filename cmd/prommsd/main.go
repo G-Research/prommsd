@@ -2,7 +2,7 @@
 // pass them to an alert hook.
 //
 // The alert handler will be available at '/alert' on the address this listens
-// on (e.g. http://localhost:9111/alert).
+// on (e.g. http://localhost:9799/alert).
 package main
 
 import (
@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	flagListenAddr  = flag.String("listen", ":9111", "Where to listen for HTTP requests")
+	flagListenAddr  = flag.String("listen", ":9799", "Where to listen for HTTP requests")
 	flagExternalURL = flag.String("external-url", "", "URL where this is accessible to users")
 	flagVersion     = flag.Bool("version", false, "Print version information")
 )

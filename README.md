@@ -143,7 +143,7 @@ receivers:
   - name: prommsd
     webhook_configs:
       - send_resolved: false
-        url: http://localhost:9111/alert
+        url: http://localhost:9799/alert
 ```
 
 It is possible to use `continue: true` and deliver to additional prommsd
