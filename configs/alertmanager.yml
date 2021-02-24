@@ -43,7 +43,7 @@ receivers:
   - name: prommsd
     webhook_configs:
       - send_resolved: false
-        url: http://localhost:9111/alert
+        url: http://localhost:9799/alert
   - name: pager
     webhook_configs:
       - url: http://localhost:1111
