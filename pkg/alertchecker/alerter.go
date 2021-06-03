@@ -1,12 +1,26 @@
 package alertchecker
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+	"strings"
+	"text/template"
+	"time"
 
 	"github.com/G-Research/prommsd/pkg/alertmanager"
 )
 
-func (ac *AlertChecker) sendAlerts(ctx context.Context, alertmanagers []string, resolved bool, groupLabels map[string]string, alert []alertmanager.Alert) error {
+var (
+	flagSlackTemplate = flag.String("slack-template", "{{.Receiver}}: {{.GroupLabels}}{{range $k, $v := .CommonAnnotations}}\n{{$k}}: {{$v}}{{end}}", "Go text/template to use for formatting slack message")
+)
+
+func (ac *AlertChecker) sendAlerts(ctx context.Context, alertmanagers []string, receiver string, lastSent time.Time, resolved bool, groupLabels map[string]string, alert []alertmanager.Alert) error {
 	var lastErr error
 	t := "alert"
 	if resolved {
@@ -43,7 +57,18 @@ func (ac *AlertChecker) sendAlerts(ctx context.Context, alertmanagers []string, 
 				}
 			}()
 		case "webhook":
-			if err := sendWebhook(ctx, u, resolved, groupLabels, alert); err != nil {
+			if err := sendWebhook(ctx, u, receiver, resolved, groupLabels, alert); err != nil {
+				log.Printf("Error sending %s to %v: %v", t, u, err)
+				lastErr = err
+			}
+		case "slack":
+			if !ac.now().After(lastSent.Add(slackSendInterval)) {
+				// Avoid repeating slack notifications frequently. This may mean resolves aren't always
+				// sent, but this is better than a noisy alert, otherwise we're going to end up duplicating
+				// all of alertmanager's logic here...
+				continue
+			}
+			if err := sendSlack(ctx, u, receiver, resolved, groupLabels, alert); err != nil {
 				log.Printf("Error sending %s to %v: %v", t, u, err)
 				lastErr = err
 			}
@@ -55,23 +80,87 @@ func (ac *AlertChecker) sendAlerts(ctx context.Context, alertmanagers []string, 
 	return lastErr
 }
 
-// sendWebhook sends to an alertmanager webhook compatible endpoint.
-func sendWebhook(ctx context.Context, sendURL *url.URL, resolved bool, groupLabels map[string]string, alerts []alertmanager.Alert) error {
+// alertBody is the body sent JSON encoded in webhook invocations, it aims to be compatible with
+// https://prometheus.io/docs/alerting/latest/configuration/#webhook_config
+type alertBody struct {
+	Version           string               `json:"version"`
+	Status            string               `json:"status"`
+	Receiver          string               `json:"receiver"`
+	GroupLabels       map[string]string    `json:"groupLabels"`
+	CommonLabels      map[string]string    `json:"commonLabels"`
+	CommonAnnotations map[string]string    `json:"commonAnnotations"`
+	Alerts            []alertmanager.Alert `json:"alerts"`
+}
+
+// makeAlertBody creates an alertBody
+func makeAlertBody(receiver string, resolved bool, groupLabels map[string]string, alerts []alertmanager.Alert) alertBody {
 	status := "firing"
 	if resolved {
 		status = "resolved"
 	}
-	// Mostly compatible with https://prometheus.io/docs/alerting/latest/configuration/#webhook_config
-	body := map[string]interface{}{
-		"version":           "4",
-		"status":            status,
-		"receiver":          "prommsd",
-		"groupLabels":       groupLabels,
-		"commonLabels":      alerts[0].Labels,
-		"commonAnnotations": alerts[0].Annotations,
-		"alerts":            alerts,
+	return alertBody{
+		Version:           "4",
+		Status:            status,
+		Receiver:          receiver,
+		GroupLabels:       groupLabels,
+		CommonLabels:      alerts[0].Labels,
+		CommonAnnotations: alerts[0].Annotations,
+		Alerts:            alerts,
 	}
+}
+
+// sendWebhook sends a notification to an alertmanager webhook compatible endpoint.
+func sendWebhook(ctx context.Context, sendURL *url.URL, receiver string, resolved bool, groupLabels map[string]string, alerts []alertmanager.Alert) error {
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	body := makeAlertBody(receiver, resolved, groupLabels, alerts)
 	j, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	resp, err := http.Post(sendURL.String(), "application/json", bytes.NewBuffer(j))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("Response %v", resp.Status)
+	}
+	return nil
+}
+
+// sendSlack sends a notification to a slack endpoint.
+func sendSlack(ctx context.Context, sendURL *url.URL, receiver string, resolved bool, groupLabels map[string]string, alerts []alertmanager.Alert) error {
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	body := makeAlertBody(receiver, resolved, groupLabels, alerts)
+	// Default text used if templating fails
+	text := fmt.Sprintf("%v: %v, %v.\n%#v\n(templating problem)", body.Receiver, body.Status, groupLabels, alerts[0])
+
+	tmpl, err := template.New("slack").Parse(*flagSlackTemplate)
+	if err != nil {
+		log.Printf("Slack template.New: %v", err)
+	} else {
+		var buf bytes.Buffer
+		err := tmpl.Execute(&buf, body)
+		if err != nil {
+			log.Printf("Slack tmpl.Execute: %v", err)
+		} else {
+			text = buf.String()
+		}
+	}
+
+	emoji := "exclaimation"
+	if resolved {
+		emoji = "grey_exclamation"
+	}
+	j, err := json.Marshal(map[string]string{
+		"username":   body.Receiver,
+		"text":       text,
+		"icon_emoji": emoji,
+	})
 	if err != nil {
 		return err
 	}

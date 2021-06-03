@@ -4,13 +4,10 @@
 package alertchecker
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -25,6 +22,7 @@ import (
 const (
 	defaultActivation = 10 * time.Minute
 	sendInterval      = 60 * time.Second
+	slackSendInterval = 20 * time.Minute
 	resolveRepeat     = 15 * time.Minute
 	expireTime        = 2 * time.Hour
 
@@ -81,6 +79,7 @@ type instanceDetails struct {
 	ActivateAt, LastSent    time.Time
 	ActivatedAt, ResolvedAt time.Time
 	AlertName               string
+	Receiver                string
 	AlertManagers           []string
 	OverrideLabels          []string
 	LastAlert               *alertmanager.Alert
@@ -124,6 +123,7 @@ func (ac *AlertChecker) HandleAlert(ctx context.Context, alert *alertmanager.Ale
 		ActivateAt:     ac.now().Add(activationDuration),
 		AlertManagers:  splitAnnotation(alertManagers),
 		AlertName:      alertName,
+		Receiver:       alert.Parent.Receiver,
 		OverrideLabels: splitAnnotation(overrideLabels),
 		// n.b.: Holds a ref to parent and therefore other alerts which we
 		// potentially don't need (but probably not very many), consider just
@@ -272,7 +272,7 @@ func (ac *AlertChecker) alert(wg *sync.WaitGroup, ctx context.Context, now time.
 		resolved = true
 	}
 
-	err := ac.sendAlerts(ctx, instance.AlertManagers, resolved, groupLabels, []alertmanager.Alert{alert})
+	err := ac.sendAlerts(ctx, instance.AlertManagers, instance.Receiver, instance.LastSent, resolved, groupLabels, []alertmanager.Alert{alert})
 	if err != nil {
 		instance.LastError = err.Error()
 	} else {
