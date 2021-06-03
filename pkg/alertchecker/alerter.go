@@ -119,7 +119,9 @@ func sendWebhook(ctx context.Context, sendURL *url.URL, receiver string, resolve
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(sendURL.String(), "application/json", bytes.NewBuffer(j))
+	u := sendURL.String()
+	log.Printf("Sending %s to %v", body.Status, u)
+	resp, err := http.Post(u, "application/json", bytes.NewBuffer(j))
 	if err != nil {
 		return err
 	}
@@ -164,7 +166,9 @@ func sendSlack(ctx context.Context, sendURL *url.URL, receiver string, resolved 
 	if err != nil {
 		return err
 	}
-	resp, err := http.Post(sendURL.String(), "application/json", bytes.NewBuffer(j))
+	u := sendURL.String()
+	log.Printf("Sending %s to %v", body.Status, u)
+	resp, err := http.Post(u, "application/json", bytes.NewBuffer(j))
 	if err != nil {
 		return err
 	}
