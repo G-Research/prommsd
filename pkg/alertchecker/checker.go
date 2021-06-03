@@ -194,6 +194,9 @@ func (ac *AlertChecker) checkMonitored(events trace.EventLog, now time.Time) {
 	for key, instance := range ac.monitored {
 		active := now.After(instance.ActivateAt)
 		sendResolved := now.Before(instance.ResolvedAt.Add(resolveRepeat))
+		if active && instance.ActivateAt.After(instance.LastSent) {
+			log.Printf("Alerting for %v", key)
+		}
 		if active || sendResolved {
 			if now.After(instance.LastSent.Add(sendInterval)) {
 				events.Printf("Alerting (active=%v, resolved=%v): %v", active, sendResolved, key)
