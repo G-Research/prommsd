@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	flagSlackTemplate = flag.String("slack-template", "{{.Receiver}}: {{.GroupLabels}}{{range $k, $v := .CommonAnnotations}}\n{{$k}}: {{$v}}{{end}}", "Go text/template to use for formatting slack message")
+	flagSlackTemplate = flag.String("slack-template", "{{.Receiver}}:{{range $k, $v := .GroupLabels}} {{$k}}={{$v}}{{end}}{{range $k, $v := .CommonAnnotations}}\n{{$k}}: {{$v}}{{end}}", "Go text/template to use for formatting slack message")
 )
 
 func (ac *AlertChecker) sendAlerts(ctx context.Context, alertmanagers []string, receiver string, lastSent time.Time, resolved bool, groupLabels map[string]string, alert []alertmanager.Alert) error {
@@ -152,7 +152,7 @@ func sendSlack(ctx context.Context, sendURL *url.URL, receiver string, resolved 
 		}
 	}
 
-	emoji := "exclaimation"
+	emoji := "exclamation"
 	if resolved {
 		emoji = "grey_exclamation"
 	}
