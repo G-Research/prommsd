@@ -319,3 +319,51 @@ func TestAlertCheckerWebhook(t *testing.T) {
 		}
 	})
 }
+
+func TestAlertCheckerSlack(t *testing.T) {
+	test(t, func(ac *AlertChecker, events trace.EventLog, now *time.Time, tt *testTransport) {
+		a := alertmanager.NewAlert()
+		a.Labels["job"] = "testerhook"
+		a.Labels["severity"] = "test"
+		a.Annotations["msd_identifiers"] = "job severity"
+		a.Annotations["msd_alertmanagers"] = "slack+alerttest://handler"
+		a.Annotations["msda_test"] = "test annotation"
+		a.Parent = &alertmanager.Message{
+			Receiver: "prommsd-unittest",
+		}
+		ac.HandleAlert(context.Background(), &a)
+		// Wait for updateInstance
+		time.Sleep(1 * time.Second)
+
+		*now = now.Add(10*time.Minute + 1)
+		ac.checkMonitored(events, *now)
+
+		if len(tt.requests) != 1 {
+			t.Errorf("got %d requests, want 1", len(tt.requests))
+		}
+
+		// Expected alert sent to webhook
+		alertReq := tt.requests[0]
+		alertBody, err := ioutil.ReadAll(alertReq.Body)
+		if err != nil {
+			t.Errorf("got error %v reading body", err)
+		}
+		t.Log(string(alertBody))
+		var alert map[string]interface{}
+		err = json.Unmarshal(alertBody, &alert)
+		if err != nil {
+			t.Errorf("got error %v decoding body", err)
+		}
+
+		if alert["icon_emoji"].(string) != "exclamation" {
+			t.Errorf("got %v, want exclamation", alert["icon_emoji"])
+		}
+		if alert["username"].(string) != "prommsd-unittest" {
+			t.Errorf("got %v, want prommsd-unittest", alert["username"])
+		}
+		text := alert["text"].(string)
+		if !strings.Contains(text, "job=testerhook") {
+			t.Errorf("got %v, want containing job=testerhook", text)
+		}
+	})
+}

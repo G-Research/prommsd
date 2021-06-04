@@ -4,13 +4,10 @@
 package alertchecker
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -25,6 +22,7 @@ import (
 const (
 	defaultActivation = 10 * time.Minute
 	sendInterval      = 60 * time.Second
+	slackSendInterval = 20 * time.Minute
 	resolveRepeat     = 15 * time.Minute
 	expireTime        = 2 * time.Hour
 
@@ -81,6 +79,7 @@ type instanceDetails struct {
 	ActivateAt, LastSent    time.Time
 	ActivatedAt, ResolvedAt time.Time
 	AlertName               string
+	Receiver                string
 	AlertManagers           []string
 	OverrideLabels          []string
 	LastAlert               *alertmanager.Alert
@@ -124,6 +123,7 @@ func (ac *AlertChecker) HandleAlert(ctx context.Context, alert *alertmanager.Ale
 		ActivateAt:     ac.now().Add(activationDuration),
 		AlertManagers:  splitAnnotation(alertManagers),
 		AlertName:      alertName,
+		Receiver:       alert.Parent.Receiver,
 		OverrideLabels: splitAnnotation(overrideLabels),
 		// n.b.: Holds a ref to parent and therefore other alerts which we
 		// potentially don't need (but probably not very many), consider just
@@ -194,6 +194,9 @@ func (ac *AlertChecker) checkMonitored(events trace.EventLog, now time.Time) {
 	for key, instance := range ac.monitored {
 		active := now.After(instance.ActivateAt)
 		sendResolved := now.Before(instance.ResolvedAt.Add(resolveRepeat))
+		if active && instance.ActivateAt.After(instance.LastSent) {
+			log.Printf("Alerting for %v", key)
+		}
 		if active || sendResolved {
 			if now.After(instance.LastSent.Add(sendInterval)) {
 				events.Printf("Alerting (active=%v, resolved=%v): %v", active, sendResolved, key)
@@ -272,61 +275,12 @@ func (ac *AlertChecker) alert(wg *sync.WaitGroup, ctx context.Context, now time.
 		resolved = true
 	}
 
-	err := ac.sendAlerts(ctx, instance.AlertManagers, resolved, groupLabels, []alertmanager.Alert{alert})
+	err := ac.sendAlerts(ctx, instance.AlertManagers, instance.Receiver, instance.LastSent, resolved, groupLabels, []alertmanager.Alert{alert})
 	if err != nil {
 		instance.LastError = err.Error()
 	} else {
 		instance.LastSent = now
 	}
-}
-
-func (ac *AlertChecker) sendAlerts(ctx context.Context, alertmanagers []string, resolved bool, groupLabels map[string]string, alert []alertmanager.Alert) error {
-	var lastErr error
-	t := "alert"
-	if resolved {
-		t = "resolved"
-	}
-	for _, alertURL := range alertmanagers {
-		u, err := url.Parse(alertURL)
-		if err != nil {
-			log.Printf("Unable to parse alert destination URL %q: %v", alertURL, err)
-			continue
-		}
-
-		// Accept type+http:// to allow specifing the kind of service.
-		// Without + (e.g. http:// or https://) default to "am" (i.e.
-		// "alertmanager").
-		deliverType := "am"
-		extraScheme := strings.SplitN(u.Scheme, "+", 2)
-		if len(extraScheme) == 2 {
-			deliverType = extraScheme[0]
-			u.Scheme = extraScheme[1]
-		}
-
-		switch deliverType {
-		case "am":
-			func() {
-				client := alertmanager.NewClient(u)
-				ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
-				defer cancel()
-				log.Printf("Sending %s to %v", t, u)
-				err := client.SendAlerts(ctx, alert)
-				if err != nil {
-					log.Printf("Error sending %s to %v: %v", t, u, err)
-					lastErr = err
-				}
-			}()
-		case "webhook":
-			if err := sendWebhook(ctx, u, resolved, groupLabels, alert); err != nil {
-				log.Printf("Error sending %s to %v: %v", t, u, err)
-				lastErr = err
-			}
-		default:
-			lastErr = fmt.Errorf("Unknown alert delivery type %v (in %q)", deliverType, alertURL)
-			log.Print(err)
-		}
-	}
-	return lastErr
 }
 
 // Split into "words", allowing lines to be commented.
@@ -344,35 +298,4 @@ func splitAnnotation(s string) []string {
 		}
 	}
 	return ret
-}
-
-// sendWebhook sends to an alertmanager webhook compatible endpoint.
-func sendWebhook(ctx context.Context, sendURL *url.URL, resolved bool, groupLabels map[string]string, alerts []alertmanager.Alert) error {
-	status := "firing"
-	if resolved {
-		status = "resolved"
-	}
-	// Mostly compatible with https://prometheus.io/docs/alerting/latest/configuration/#webhook_config
-	body := map[string]interface{}{
-		"version":           "4",
-		"status":            status,
-		"receiver":          "prommsd",
-		"groupLabels":       groupLabels,
-		"commonLabels":      alerts[0].Labels,
-		"commonAnnotations": alerts[0].Annotations,
-		"alerts":            alerts,
-	}
-	j, err := json.Marshal(body)
-	if err != nil {
-		return err
-	}
-	resp, err := http.Post(sendURL.String(), "application/json", bytes.NewBuffer(j))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("Response %v", resp.Status)
-	}
-	return nil
 }

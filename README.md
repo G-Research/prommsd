@@ -118,6 +118,17 @@ allow you to do this.
 It is expected this is connected to a system that understands incidents, as it
 will repeat notifications frequently.
 
+## Sending to Slack
+
+In addition to webhooks, it is possible to send a message to Slack. This is
+designed to work with the "Incoming WebHooks" Slack app.
+
+To use, ensure you have the "Incoming WebHooks" app added on your Slack
+workspace. Then add the integration to a channel, which will give you a
+URL; add that URL to your `msd_alertmanagers` annotation prefixed with `slack+`.
+This will look something like:
+`slack+https://hooks.slack.com/AN-ID/ANOTHER-ID...`
+
 ### Alert routing
 
 In the alertmanager configuration; an alert route that routes
