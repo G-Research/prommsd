@@ -166,7 +166,7 @@ silenced.
 
 ### Monitoring of the monitor
 
-A rule to verify prommsd is running. We reccommend to only run on one Prometheus
+A rule to verify prommsd is running. We recommend to only run on one Prometheus
 instance, e.g. in the Prometheus in Kubernetes namespace that runs this, if
 there's a Prometheus instance per namespace:
 
