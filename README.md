@@ -15,14 +15,14 @@ alerts first, then it will alert for the lack of alerts later.
 ### Why the name?
 
 A "dead man's" device is more correctly called a ["Driver Safety
-Device"][machinerysafety101],this is your safety check for your monitoring, so
+Device"][machinerysafety101], this is your safety check for your monitoring, so
 it's monitoring safety rather than driver safety.
 
 [machinerysafety101]: https://machinerysafety101.com/2011/03/28/stop-using-the-term-deadman/
 
 ### Alternatives
 
-This isn't for everyone:
+prommsd may not be the best approach for everyone. Here are some alternatives:
 
 - Monitor your Prometheus instance from another one
 - Use cloud services, like [Dead Man's Snitch](https://deadmanssnitch.com) (see
@@ -39,7 +39,7 @@ Prometheus instance.
 
 It also provides some level of round-trip testing, i.e. a probe for your
 Prometheus and Alertmanager together, and once you have prommsd running within
-your infrastructure can easily be enabled with a standard rule on your
+your infrastructure, it can easily be enabled with a standard rule on your
 Prometheus instances, rather than needing configuration elsewhere.
 
 ## Setup
@@ -48,7 +48,7 @@ Prometheus instances, rather than needing configuration elsewhere.
 
 Configure an alerting rule to always alert if your instance is healthy. The
 simplest is just `expr: 1`. We recommend a slightly more advanced rule (see
-below) while checking the "up" status of yourself may seen redundant it
+below) while checking the "up" status of yourself may seen redundant, it
 provides a basic end-to-end sanity check of your Prometheus instance
 consistency and potentially your service discovery.
 
@@ -84,7 +84,7 @@ groups:
 Parameters:
 
 - `msd_identifiers`: Labels to use to uniquely identify an alert. (Often "job" would
-  be enough, but because the dead man's handle is a shared instance you may also
+  be enough, but because the monitoring safety device is a shared instance you may also
   need to include namespace, or other variables). Space separated.
 - `msd_alertname`: Alert name to use for the triggered alert.
 - `msd_override_labels`: All the labels from the alert will be copied, but override
@@ -115,7 +115,7 @@ alertmanager, but in some cases it is useful to send straight to a webhook
 component. Specifying `webhook+http://webhook/alert` in `msd_alertmanagers` will
 allow you to do this.
 
-It is expected this is connected to a system that understands incidents, as it
+It is expected that prommsd is connected to a system that understands incidents, as it
 will repeat notifications frequently.
 
 ## Sending to Slack
@@ -131,7 +131,7 @@ This will look something like:
 
 ### Alert routing
 
-In the alertmanager configuration; an alert route that routes
+In the alertmanager configuration, set an alert route that routes
 `severity=heartbeat` to a receiver called `prommsd`:
 
 ```yaml
@@ -166,9 +166,9 @@ silenced.
 
 ### Monitoring of the monitor
 
-A rule to make sure this is running (this only needs to be on one Prometheus
+A rule to verify prommsd is running. We reccommend to only run on one Prometheus
 instance, e.g. in the Prometheus in Kubernetes namespace that runs this, if
-there's a Prometheus instance per namespace):
+there's a Prometheus instance per namespace:
 
 ```yaml
 groups:
@@ -252,8 +252,8 @@ countdown finishes.
 Silence the paging alert (`alertname=NoAlertConnectivity` if `msd_alertname` is
 set as above).
 
-If you're removing an instance there is a delete button on the interface. Make
-sure the alert is deleted from Prometheus, so that it doesn't get recreated on
+If you're removing an instance, there is a delete button on the interface. Make
+sure the alert is deleted from Prometheus so that it doesn't get recreated on
 prommsd, then delete it. Currently there is no authorization enforced --
 because the alert is regularly repeated, deleting has minimal impact, unless an
 outage occurs.
