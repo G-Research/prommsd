@@ -48,7 +48,7 @@ Prometheus instances, rather than needing configuration elsewhere.
 
 Configure an alerting rule to always alert if your instance is healthy. The
 simplest is just `expr: 1`. We recommend a slightly more advanced rule (see
-below) while checking the "up" status of yourself may seen redundant, it
+below). While checking the "up" status of yourself may seen redundant, it
 provides a basic end-to-end sanity check of your Prometheus instance
 consistency and potentially your service discovery.
 
