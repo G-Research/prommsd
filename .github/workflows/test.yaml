@@ -17,7 +17,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          files=$(go run golang.org/x/tools/cmd/goimports -l -local "github.com/G-Research" .)
+          files=$(go run golang.org/x/tools/cmd/goimports@latest -l -local "github.com/G-Research" .)
           if [[ $files != "" ]]; then
             echo "Files need goimports running on them:"
             echo "$files"
