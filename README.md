@@ -142,8 +142,10 @@ route:
       - match:
           severity: heartbeat
         receiver: prommsd
-        # Always set group_interval to 0s, prommsd does its own grouping.
-        group_interval: 0s
+        # Always set group_interval to a very short non-zero
+        # duration: prommsd does its own grouping and alertmanager
+        # requires non-zero.
+        group_interval: 1s
         repeat_interval: 1m
 ```
 
