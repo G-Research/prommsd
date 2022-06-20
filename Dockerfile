@@ -19,7 +19,7 @@ WORKDIR /src
 # version to be used, to avoid pulling from GitHub again (and make this build
 # work for forks, etc).
 ENV GOPRIVATE="github.com/G-Research/prommsd"
-RUN GO111MODULE=on go get github.com/G-Research/prommsd/cmd/prommsd@$(cat /git-commit-id)
+RUN GO111MODULE=on go install github.com/G-Research/prommsd/cmd/prommsd@$(cat /git-commit-id)
 
 # final stage
 FROM alpine
