@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/net/trace"
 )
 
@@ -22,7 +23,7 @@ func Serve(listenAddr string, alertHandler AlertHandler, registerer prometheus.R
 }
 
 func registerHandlers(serveMux *http.ServeMux, handler *AlertHook) {
-	serveMux.Handle("/alert", handler)
+	serveMux.Handle("/alert", otelhttp.NewHandler(handler, "/alert"))
 	serveMux.Handle("/metrics", promhttp.Handler())
 
 	serveMux.HandleFunc("/-/healthy", func(w http.ResponseWriter, req *http.Request) {

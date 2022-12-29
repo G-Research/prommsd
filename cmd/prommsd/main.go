@@ -6,15 +6,20 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"runtime/debug"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/semconv/v1.12.0"
 
 	"github.com/G-Research/prommsd/pkg/alertchecker"
 	"github.com/G-Research/prommsd/pkg/alerthook"
+	"github.com/G-Research/prommsd/pkg/tracing"
 )
 
 var (
@@ -30,6 +35,20 @@ func main() {
 		showVersion()
 		os.Exit(0)
 	}
+
+	ctx := context.Background()
+
+	shutdownTracing, err := tracing.SetProviderFromEnv(
+		ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String("prommsd"),
+			semconv.ServiceNamespaceKey.String("github.com/G-Research"),
+		),
+	)
+	if err != nil {
+		log.Fatalf("Cannot initialise tracing: %v", err)
+	}
+	defer shutdownTracing(ctx)
 
 	reg := prometheus.DefaultRegisterer
 	reg.MustRegister(prometheus.NewBuildInfoCollector())
