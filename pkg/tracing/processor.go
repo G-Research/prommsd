@@ -47,7 +47,10 @@ func NewOTLPExporterFromEnv(ctx context.Context) (sdktrace.SpanExporter, error) 
 }
 
 func NewProcessorsFromEnv(ctx context.Context) ([]sdktrace.SpanProcessor, error) {
-	enabled := strings.Split(strings.TrimSpace(os.Getenv("OTEL_TRACES_EXPORTER")), ",")
+	var enabled []string
+	if s := strings.TrimSpace(os.Getenv("OTEL_TRACES_EXPORTER")); s != "" {
+		enabled = strings.Split(s, ",")
+	}
 
 	// https://opentelemetry.io/docs/reference/specification/sdk-environment-variables/#exporter-selection
 	// Default exporter should be "otlp"; however to preserve compatibiltiy

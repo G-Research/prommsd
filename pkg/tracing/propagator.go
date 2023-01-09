@@ -17,7 +17,12 @@ func NewPropagatorsFromEnv() (propagation.TextMapPropagator, error) {
 	enabled := []string{"tracecontext", "baggage"}
 
 	if v, ok := os.LookupEnv("OTEL_PROPAGATORS"); ok {
-		enabled = strings.Split(strings.TrimSpace(v), ",")
+		if s := strings.TrimSpace(v); s != "" {
+			enabled = strings.Split(s, ",")
+		} else {
+			// Explicit empty string in the environment: clear the default.
+			enabled = nil
+		}
 	}
 
 	var propagators []propagation.TextMapPropagator
