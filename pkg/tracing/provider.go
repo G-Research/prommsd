@@ -26,7 +26,21 @@ func NewProviderFromEnv(ctx context.Context, resourceOptions ...resource.Option)
 			resourceOptions,
 			// Allow environment variables to override constant attributes provided by the caller.
 			resource.WithFromEnv(),
-			resource.WithProcess(),
+			// We need to replace the default implementation of WithProcessOwner, as it can fail
+			// if there is no passwd file (for example in Docker containers without /etc/passwd
+			// but with CGO enabled). However, there is no straight-forward way to produce a new
+			// With... grouping, due to package visibility rules. (And there is no way, also due
+			// to visibility, to replace the default process owner provider.) So we have to enumerate
+			// _all_ the calls WithProcess is equivalent to, so we can change the process owner
+			// implementation.
+			resource.WithProcessPID(),
+			resource.WithProcessExecutableName(),
+			resource.WithProcessExecutablePath(),
+			resource.WithProcessCommandArgs(),
+			WithSafeProcessOwner(),
+			resource.WithProcessRuntimeName(),
+			resource.WithProcessRuntimeVersion(),
+			resource.WithProcessRuntimeDescription(),
 		)...,
 	)
 	if err != nil {
